@@ -54,7 +54,7 @@ class Rewrite:
 
     @staticmethod
     def this_relation() -> "Rewrite":
-        return Rewrite(pp=OpType.THIS)
+        return Rewrite(op=OpType.THIS)
     
     @staticmethod
     def union(*kids: "Rewrite") -> "Rewrite":
@@ -92,3 +92,5 @@ class Namespace:
     
     def get(self, type_name: str) -> TypeDefinition | None:
         return self.types.get(type_name)
+    
+

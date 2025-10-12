@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "zanzibar-auth-objstore"
+version = "0.1.0"
+description = ""
+authors = ["Vishal Kotak <vishal.sanjiv.kotak@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.13"
+grpcio = "^1.75.1"
+grpcio-tools = "^1.75.1"
+
+[tool.poetry.group.dev.dependencies]
+poethepoet = "^0.37.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

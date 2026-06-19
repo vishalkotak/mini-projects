@@ -1,0 +1,39 @@
+ABOUT TENSORTONIC
+=================
+
+TensorTonic is an ML learning platform built around implementation. Instead of
+watching lectures, you read short theory and then write the code that makes the
+concept real, from gradient descent to attention to LoRA.
+
+The platform is for engineers learning ML hands-on, candidates preparing for ML
+interviews, and self-taught practitioners who want their understanding to come
+from building rather than from passive reading.
+
+
+WHAT TENSORTONIC OFFERS
+=======================
+
+- Problems: coding problems across classical ML, deep learning, NLP, computer
+  vision, reinforcement learning, and GPU kernels in CUDA and Triton.
+- Study Plans: ordered learning tracks that walk you through a domain end to
+  end, such as Cracking Deep Learning and Foundations of PyTorch.
+- Research Papers: pick a paper and implement its core idea from scratch with
+  the original text alongside.
+- Projects: build a full ML system from scratch, end to end. Current projects
+  include building a RAG agent, a tokenizer, and a small autograd engine.
+
+
+FREQUENTLY ASKED QUESTIONS
+==========================
+
+Q: What kinds of math topics does TensorTonic teach?
+A: Linear algebra, probability, calculus, and optimization, all framed in the
+   context of ML and taught by implementing the math.
+
+Q: What domains do the coding problems cover?
+A: Classical ML, deep learning, NLP, computer vision, reinforcement learning,
+   and GPU kernels written in CUDA and Triton.
+
+Q: Do I just watch videos?
+A: No. Every concept is learned by writing code. You read a short theory section
+   and then implement the idea yourself, with tests that check your work.

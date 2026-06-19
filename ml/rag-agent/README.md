@@ -17,11 +17,11 @@ then the same model answering correctly once it can retrieve from the document.
 
 ## What the notebook does
 
-1. **Bare LLM baseline** — ask "What domains do TensorTonic's coding problems cover?" with no retrieval, and watch the model guess.
-2. **Build the pipeline** — load `document.txt`, split it with `RecursiveCharacterTextSplitter` (~512 chars, 64 overlap), embed each chunk, and index them in a Chroma vector store.
-3. **Retrieve** — turn the question into a vector and pull the top-`k` nearest chunks by cosine distance; a text bar chart and a 2D embedding-space plot visualize the hits.
-4. **Grounded prompting** — a system prompt forces the model to answer using *only* the retrieved chunks and cite them as `[chunk N]`.
-5. **Compare & explore** — run the same question bare vs. RAG side by side, then ask follow-ups (including one not in the document, which RAG should refuse cleanly).
+1. **Bare LLM baseline**: ask "What domains do TensorTonic's coding problems cover?" with no retrieval, and watch the model guess.
+2. **Build the pipeline**: load `document.txt`, split it with `RecursiveCharacterTextSplitter` (~512 chars, 64 overlap), embed each chunk, and index them in a Chroma vector store.
+3. **Retrieve**: turn the question into a vector and pull the top-`k` nearest chunks by cosine distance; a text bar chart and a 2D embedding-space plot visualize the hits.
+4. **Grounded prompting**: a system prompt forces the model to answer using *only* the retrieved chunks and cite them as `[chunk N]`.
+5. **Compare & explore**: run the same question bare vs. RAG side by side, then ask follow-ups (including one not in the document, which RAG should refuse cleanly).
 
 ## Running it
 
@@ -46,5 +46,5 @@ export OPENAI_API_KEY="..."
 jupyter notebook build_a_rag_agent.ipynb
 ```
 
-The committed notebook has no cell outputs — it was not executed outside the
+The committed notebook has no cell outputs; it was not executed outside the
 TensorTonic sandbox.

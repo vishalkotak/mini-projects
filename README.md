@@ -6,7 +6,7 @@ A collection of small, self-contained projects built for learning.
 
 | Project | What it is |
 |---------|------------|
-| [rag-agent](./rag-agent) | A retrieval-augmented generation pipeline (load → chunk → embed → retrieve → grounded answer) in a Jupyter notebook. |
+| [rag-agent](./ml/rag-agent) | A retrieval-augmented generation pipeline (load → chunk → embed → retrieve → grounded answer) in a Jupyter notebook. |
 | [simd-vector-search](./simd-vector-search) | Vector similarity search with SIMD. |
 | [zanzibar-auth-objstore](./zanzibar-auth-objstore) | Zanzibar-style authorization over an object store. |
 | [ruststore](./ruststore) | A key-value store in Rust. |

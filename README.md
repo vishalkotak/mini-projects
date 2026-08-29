@@ -68,6 +68,7 @@ at the parse/serialize boundary.
 | `GET /` | `200 OK`, `text/plain`, `hello` |
 | `GET /health` | `200 OK`, `text/plain`, `healthy` |
 | anything else | `404 Not Found`, empty body |
+| unparseable request | `400 Bad Request`, empty body |
 
 Matching is on **method and target together**, so `POST /` correctly 404s
 rather than being treated as `GET /`.
@@ -96,8 +97,9 @@ Deliberate — this is a learning build, not a production server.
 - **No keep-alive** — one request per connection, then close.
 - **No chunked transfer encoding**, so a request without `Content-Length` is
   assumed to have no body.
-- **Parse errors close the connection** instead of returning `400`.
 - **Threads are non-daemon**, so Ctrl-C won't exit cleanly while a connection
   is open.
 - **No timeouts** — a client that opens a connection and never sends a
-  complete line ties up a thread indefinitely.
+  complete line ties up a thread indefinitely. A truncated request only
+  becomes a `400` once the client actually closes; a client that just
+  stops writing blocks in `recv()` forever.

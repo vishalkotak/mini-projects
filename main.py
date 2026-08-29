@@ -60,7 +60,7 @@ def parse_request_line(line):
     line = line.rstrip(b"\r")
     parts = line.split(b" ")
     if len(parts) != 3:
-        raise ValueError
+        raise ValueError("malformed request line")
     return RequestLine(*parts)
 
 def parse_header(line):
@@ -97,6 +97,8 @@ def serialize_response(response: Response) -> bytes:
         + b"\r\n"
     )
     for key, value in response.headers.items():
+        if key.lower() in (b"content-length", b"connection"):
+            continue
         result += key + b": " + value + b"\r\n"
     result += (
         b"Content-Length: "
@@ -136,6 +138,12 @@ def handle_connection(connection):
     try:
         request = parse_request(connection)
         response = handle_request(request)
+        connection.sendall(serialize_response(response))
+    except (ValueError, EOFError):
+        response = Response(
+                status_code=400,
+                reason=b"Bad Request",
+            )
         connection.sendall(serialize_response(response))
     finally:
         connection.close()

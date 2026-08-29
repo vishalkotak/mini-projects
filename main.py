@@ -85,3 +85,12 @@ server.listen()
 
 connection, address = server.accept()
 print(parse_request(connection))
+
+response = (
+    b"HTTP/1.1 200 OK\r\n"
+    b"Content-Length: 5\r\n"
+    b"Content-Type: text/plain\r\n"
+    b"\r\n"
+    b"hello"
+)
+connection.sendall(response)

@@ -1,0 +1,103 @@
+# HTTP from TCP
+
+A minimal HTTP/1.1 server written directly on top of a TCP socket, built to
+understand what a web framework is actually doing underneath.
+
+Nothing here imports `http` or `socketserver`. The only stdlib pieces used are
+`socket` (raw bytes in and out) and `threading` (one thread per connection).
+Everything between those two — framing, parsing, routing, serializing — is
+written out by hand.
+
+## The idea
+
+TCP gives you a *byte stream*, not messages. `recv()` returns whatever bytes
+happen to have arrived: half a line, three lines, a line plus the first few
+bytes of the next one. HTTP is a protocol layered on top of that stream, and
+the whole job of this code is deciding where one message ends and the next
+begins.
+
+HTTP/1.1 solves that with exactly two framing rules, and this server implements
+both:
+
+- **The head is delimiter-framed** — read until `\r\n`, and a bare `\r\n` ends
+  the header block.
+- **The body is length-framed** — read exactly `Content-Length` bytes.
+
+## Files
+
+| File | What it is |
+|------|------------|
+| `main.py` | The whole server: reader, parser, router, serializer, accept loop. |
+| `messages.txt` | A small fixture used early on to exercise line-splitting against a file before pointing it at a socket. |
+
+## How it fits together
+
+`BufferedReader` wraps a connection and owns the leftover bytes:
+
+- `read_line()` keeps calling `recv(8)` until it finds a `\n`, returns the line,
+  and **keeps the remainder** in `self.buffer`.
+- `read_exact(n)` keeps reading until `n` bytes are available, then splits them
+  off the front.
+
+Holding the remainder on the instance is the part that matters. The last
+`recv()` of the header block usually drags in the first bytes of the body too;
+because they stay in the buffer, `read_exact()` can consume them instead of
+losing them.
+
+The deliberately tiny `recv(8)` is a teaching choice — it guarantees that
+almost every line spans multiple reads, so the buffering logic is actually
+exercised rather than accidentally working.
+
+From there:
+
+- `parse_request()` reads the request line, loops headers until the bare `\r\n`,
+  then reads the body if `Content-Length` is present.
+- `handle_request()` maps method + target to a `Response`.
+- `serialize_response()` renders a `Response` back to bytes, computing
+  `Content-Length` from `len(body)` so the two cannot disagree.
+- The accept loop hands each connection to its own thread.
+
+`Request` and `Response` are symmetric dataclasses, so the semantic types live
+in the model (`status_code` is an `int`) and the bytes conversion happens only
+at the parse/serialize boundary.
+
+## Routes
+
+| Request | Response |
+|---------|----------|
+| `GET /` | `200 OK`, `text/plain`, `hello` |
+| `GET /health` | `200 OK`, `text/plain`, `healthy` |
+| anything else | `404 Not Found`, empty body |
+
+Matching is on **method and target together**, so `POST /` correctly 404s
+rather than being treated as `GET /`.
+
+## Running it
+
+```bash
+python3 main.py          # listens on localhost:42069
+```
+
+```bash
+curl -i http://localhost:42069/
+curl -i http://localhost:42069/health
+curl -i http://localhost:42069/nope
+
+# watch the raw bytes, CRLFs and all
+curl -s -i http://localhost:42069/ | od -c
+```
+
+## Known limitations
+
+Deliberate — this is a learning build, not a production server.
+
+- **No `SO_REUSEADDR`**, so restarting fails with `Address already in use`
+  until the socket leaves `TIME_WAIT`.
+- **No keep-alive** — one request per connection, then close.
+- **No chunked transfer encoding**, so a request without `Content-Length` is
+  assumed to have no body.
+- **Parse errors close the connection** instead of returning `400`.
+- **Threads are non-daemon**, so Ctrl-C won't exit cleanly while a connection
+  is open.
+- **No timeouts** — a client that opens a connection and never sends a
+  complete line ties up a thread indefinitely.

@@ -11,6 +11,7 @@ class RequestLine:
 class Request:
     request_line: RequestLine | None = None
     headers: dict[bytes, bytes] = field(default_factory=dict)
+    body: bytes = b""
 
 class BufferedReader:
     def __init__(self, connection):
@@ -27,6 +28,17 @@ class BufferedReader:
         line = self.buffer[:new_line_index]
         self.buffer = self.buffer[new_line_index + 1:]
         return line
+
+    def read_exact(self, n: int):
+        while len(self.buffer) < n:
+            data = self.connection.recv(8)
+            if not data:
+                raise EOFError("connection closed before line completed")
+            self.buffer += data
+        result = self.buffer[:n]
+        self.buffer = self.buffer[n:]
+        return result
+        
 
 """
 \r meant “move the cursor back to the beginning of the line,” 
@@ -61,6 +73,10 @@ def parse_request(connection):
             break
         header = parse_header(line)
         request.headers[header[0]] = header[1]
+
+    content_length = request.headers.get(b"Content-Length")
+    if content_length is not None:
+        request.body = reader.read_exact(int(content_length))
     return request
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

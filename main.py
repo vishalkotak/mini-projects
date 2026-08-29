@@ -1,4 +1,5 @@
 import socket
+import threading
 from dataclasses import dataclass, field
 
 @dataclass
@@ -106,18 +107,47 @@ def serialize_response(response: Response) -> bytes:
     result += response.body
     return result
 
+
+def handle_request(request: Request) -> Response:
+    method = request.request_line.method
+    target = request.request_line.target
+    if method == b"GET" and target == b"/":
+        return Response(
+                status_code=200,
+                reason=b"OK",
+                headers={b"Content-Type": b"text/plain"},
+                body=b"hello",
+            )
+    elif method == b"GET" and target == b"/health":
+        return Response(
+                status_code=200,
+                reason=b"OK",
+                headers={b"Content-Type": b"text/plain"},
+                body=b"healthy",
+            )
+    else:
+        return Response(
+                status_code=404,
+                reason=b"Not Found",
+            )
+
+
+def handle_connection(connection):
+    try:
+        request = parse_request(connection)
+        response = handle_request(request)
+        connection.sendall(serialize_response(response))
+    finally:
+        connection.close()
+
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind(("localhost", 42069))
 server.listen()
 
-connection, address = server.accept()
-print(parse_request(connection))
-
-response = Response(
-    status_code=200,
-    reason=b"OK",
-    headers={b"Content-Type": b"text/plain"},
-    body=b"hello",
-)
-
-connection.sendall(serialize_response(response))
+while True:
+    connection, address = server.accept()
+    thread = threading.Thread(
+        target=handle_connection,
+        args=(connection,),
+    )
+    thread.start()

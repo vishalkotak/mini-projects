@@ -13,6 +13,13 @@ class Request:
     headers: dict[bytes, bytes] = field(default_factory=dict)
     body: bytes = b""
 
+@dataclass
+class Response:
+    status_code: int
+    reason: bytes
+    headers: dict[bytes, bytes] = field(default_factory=dict)
+    body: bytes = b""
+
 class BufferedReader:
     def __init__(self, connection):
         self.connection = connection
@@ -79,6 +86,26 @@ def parse_request(connection):
         request.body = reader.read_exact(int(content_length))
     return request
 
+
+def serialize_response(response: Response) -> bytes:
+    result = (
+        b"HTTP/1.1 "
+        + str(response.status_code).encode()
+        + b" "
+        + response.reason
+        + b"\r\n"
+    )
+    for key, value in response.headers.items():
+        result += key + b": " + value + b"\r\n"
+    result += (
+        b"Content-Length: "
+        + str(len(response.body)).encode()
+        + b"\r\n"
+        + b"\r\n"
+    )
+    result += response.body
+    return result
+
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind(("localhost", 42069))
 server.listen()
@@ -86,11 +113,11 @@ server.listen()
 connection, address = server.accept()
 print(parse_request(connection))
 
-response = (
-    b"HTTP/1.1 200 OK\r\n"
-    b"Content-Length: 5\r\n"
-    b"Content-Type: text/plain\r\n"
-    b"\r\n"
-    b"hello"
+response = Response(
+    status_code=200,
+    reason=b"OK",
+    headers={b"Content-Type": b"text/plain"},
+    body=b"hello",
 )
-connection.sendall(response)
+
+connection.sendall(serialize_response(response))

@@ -70,9 +70,8 @@ def parse_header(line):
         raise ValueError("malformed header")
     return (parts[0], parts[1].strip())
 
-def parse_request(connection):
+def parse_request(reader: BufferedReader):
     request = Request()
-    reader = BufferedReader(connection)
     line = reader.read_line()
     request.request_line = parse_request_line(line)
     while True:
@@ -103,6 +102,11 @@ def serialize_response(response: Response) -> bytes:
     result += (
         b"Content-Length: "
         + str(len(response.body)).encode()
+        + b"\r\n"
+    )
+    result += (
+        b"Connection: "
+        + b"keep-alive"
         + b"\r\n"
         + b"\r\n"
     )
@@ -135,16 +139,21 @@ def handle_request(request: Request) -> Response:
 
 
 def handle_connection(connection):
+    reader = BufferedReader(connection)
     try:
-        request = parse_request(connection)
-        response = handle_request(request)
-        connection.sendall(serialize_response(response))
-    except (ValueError, EOFError):
-        response = Response(
-                status_code=400,
-                reason=b"Bad Request",
-            )
-        connection.sendall(serialize_response(response))
+        while True:
+            try:
+                request = parse_request(reader)
+                response = handle_request(request)
+                connection.sendall(serialize_response(response))
+            except EOFError:
+                break
+            except ValueError:
+                response = Response(
+                        status_code=400,
+                        reason=b"Bad Request",
+                    )
+                connection.sendall(serialize_response(response))
     finally:
         connection.close()
 

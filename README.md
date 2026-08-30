@@ -23,12 +23,19 @@ both:
   the header block.
 - **The body is length-framed** — read exactly `Content-Length` bytes.
 
+Because every response is length-framed, the connection can be reused: once
+`Content-Length` bytes are consumed the next request starts immediately, with
+no ambiguity about where the previous one ended. That is what makes
+keep-alive and pipelining possible, and why `BufferedReader` is created once
+per *connection* rather than once per request.
+
 ## Files
 
 | File | What it is |
 |------|------------|
 | `main.py` | The whole server: reader, parser, router, serializer, accept loop. |
 | `messages.txt` | A small fixture used early on to exercise line-splitting against a file before pointing it at a socket. |
+| `client.py` | A tiny raw-socket client that pipelines two requests down one connection, to exercise keep-alive. |
 
 ## How it fits together
 
@@ -77,7 +84,12 @@ rather than being treated as `GET /`.
 
 ```bash
 python3 main.py          # listens on localhost:42069
+python3 client.py        # pipelines two requests down one connection
 ```
+
+`client.py` will print both responses and then block: the server holds the
+connection open waiting for a third request, and neither side closes first.
+Ctrl-C it.
 
 ```bash
 curl -i http://localhost:42069/
@@ -94,7 +106,12 @@ Deliberate — this is a learning build, not a production server.
 
 - **No `SO_REUSEADDR`**, so restarting fails with `Address already in use`
   until the socket leaves `TIME_WAIT`.
-- **No keep-alive** — one request per connection, then close.
+- **A `400` does not close the connection.** The loop keeps reading from a
+  stream whose position is now unknown, so one malformed line can produce
+  several `400`s before it resynchronizes by luck. RFC 9112 says to close
+  after a parse error precisely because recovery is not generally possible.
+- **`Connection: keep-alive` is sent unconditionally**, including on `400`
+  and without checking whether the client asked for it.
 - **No chunked transfer encoding**, so a request without `Content-Length` is
   assumed to have no body.
 - **Threads are non-daemon**, so Ctrl-C won't exit cleanly while a connection

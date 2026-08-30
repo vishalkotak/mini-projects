@@ -60,7 +60,7 @@ def parse_request_line(line):
     line = line.rstrip(b"\r")
     parts = line.split(b" ")
     if len(parts) != 3:
-        raise ValueError
+        raise ValueError("malformed request line")
     return RequestLine(*parts)
 
 def parse_header(line):
@@ -70,9 +70,8 @@ def parse_header(line):
         raise ValueError("malformed header")
     return (parts[0], parts[1].strip())
 
-def parse_request(connection):
+def parse_request(reader: BufferedReader):
     request = Request()
-    reader = BufferedReader(connection)
     line = reader.read_line()
     request.request_line = parse_request_line(line)
     while True:
@@ -88,7 +87,7 @@ def parse_request(connection):
     return request
 
 
-def serialize_response(response: Response) -> bytes:
+def serialize_response(response: Response, close_connection: bool = False,) -> bytes:
     result = (
         b"HTTP/1.1 "
         + str(response.status_code).encode()
@@ -97,46 +96,90 @@ def serialize_response(response: Response) -> bytes:
         + b"\r\n"
     )
     for key, value in response.headers.items():
+        if key.lower() in (b"content-length", b"connection"):
+            continue
         result += key + b": " + value + b"\r\n"
     result += (
         b"Content-Length: "
         + str(len(response.body)).encode()
+        + b"\r\n"
+    )
+    connection_value = (
+        b"close"
+        if close_connection
+        else b"keep-alive"
+    )
+    result += (
+        b"Connection: "
+        + connection_value
         + b"\r\n"
         + b"\r\n"
     )
     result += response.body
     return result
 
+def should_close(request: Request) -> bool:
+    connection_header = request.headers.get(b"Connection")
+    if not connection_header:
+        return False
+    return connection_header.lower() == b"close"
 
 def handle_request(request: Request) -> Response:
     method = request.request_line.method
     target = request.request_line.target
-    if method == b"GET" and target == b"/":
-        return Response(
+
+    if target == b"/":
+        if method == b"GET":
+            return Response(
                 status_code=200,
                 reason=b"OK",
                 headers={b"Content-Type": b"text/plain"},
                 body=b"hello",
             )
-    elif method == b"GET" and target == b"/health":
+
         return Response(
+            status_code=405,
+            reason=b"Method Not Allowed",
+        )
+
+    if target == b"/health":
+        if method == b"GET":
+            return Response(
                 status_code=200,
                 reason=b"OK",
                 headers={b"Content-Type": b"text/plain"},
                 body=b"healthy",
             )
-    else:
-        return Response(
-                status_code=404,
-                reason=b"Not Found",
-            )
 
+        return Response(
+            status_code=405,
+            reason=b"Method Not Allowed",
+        )
+
+    return Response(
+        status_code=404,
+        reason=b"Not Found",
+    )
 
 def handle_connection(connection):
+    reader = BufferedReader(connection)
     try:
-        request = parse_request(connection)
-        response = handle_request(request)
-        connection.sendall(serialize_response(response))
+        while True:
+            try:
+                request = parse_request(reader)
+            except EOFError:
+                break
+            except ValueError:
+                response = Response(
+                        status_code=400,
+                        reason=b"Bad Request",
+                    )
+                connection.sendall(serialize_response(response))
+            response = handle_request(request)
+            close_after_response = should_close(request)
+            connection.sendall(serialize_response(response, close_connection=close_after_response))
+            if close_after_response:
+                break
     finally:
         connection.close()
 

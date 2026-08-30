@@ -35,7 +35,7 @@ per *connection* rather than once per request.
 |------|------------|
 | `main.py` | The whole server: reader, parser, router, serializer, accept loop. |
 | `messages.txt` | A small fixture used early on to exercise line-splitting against a file before pointing it at a socket. |
-| `client.py` | A tiny raw-socket client that pipelines two requests down one connection, to exercise keep-alive. |
+| `client.py` | A tiny raw-socket client that sends one request with `Connection: close`, to watch the server close the connection. |
 
 ## How it fits together
 
@@ -59,7 +59,9 @@ From there:
 
 - `parse_request()` reads the request line, loops headers until the bare `\r\n`,
   then reads the body if `Content-Length` is present.
-- `handle_request()` maps method + target to a `Response`.
+- `handle_request()` maps target, then method, to a `Response`.
+- `should_close()` reads the request's `Connection` header to decide whether
+  this is the last exchange on the socket.
 - `serialize_response()` renders a `Response` back to bytes, computing
   `Content-Length` from `len(body)` so the two cannot disagree.
 - The accept loop hands each connection to its own thread.
@@ -89,12 +91,13 @@ The connection is reused by default and closed when the request carries
 
 ```bash
 python3 main.py          # listens on localhost:42069
-python3 client.py        # pipelines two requests down one connection
+python3 client.py        # one request with Connection: close
 ```
 
-`client.py` will print both responses and then block: the server holds the
-connection open waiting for a third request, and neither side closes first.
-Ctrl-C it.
+`client.py` sends `Connection: close`, so the server closes after responding
+and the client's `recv()` loop ends on its own. Drop that header and send two
+requests back to back instead, and the same script exercises pipelining — but
+it will then block, because neither side closes first.
 
 ```bash
 curl -i http://localhost:42069/

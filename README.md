@@ -74,11 +74,16 @@ at the parse/serialize boundary.
 |---------|----------|
 | `GET /` | `200 OK`, `text/plain`, `hello` |
 | `GET /health` | `200 OK`, `text/plain`, `healthy` |
-| anything else | `404 Not Found`, empty body |
+| known path, wrong method | `405 Method Not Allowed`, empty body |
+| unknown path | `404 Not Found`, empty body |
 | unparseable request | `400 Bad Request`, empty body |
 
-Matching is on **method and target together**, so `POST /` correctly 404s
-rather than being treated as `GET /`.
+Target is matched first, then method, so a known path with an unsupported
+method gets `405` rather than `404` — `POST /` is "that resource exists, not
+that verb", which is different from `GET /nope`.
+
+The connection is reused by default and closed when the request carries
+`Connection: close`, which the response then echoes back.
 
 ## Running it
 
@@ -100,6 +105,16 @@ curl -i http://localhost:42069/nope
 curl -s -i http://localhost:42069/ | od -c
 ```
 
+## Known bug
+
+The `except ValueError` branch in `handle_connection()` sends its `400` but
+does not `continue`, so control falls through to `handle_request(request)`
+below it. If the malformed request is the first on the connection, `request`
+is unbound and the thread dies with `UnboundLocalError`. If a valid request
+came first, `request` still holds the *previous* one, so the server replays
+the previous response after the `400` and keeps doing so on every subsequent
+bad line. Adding `continue` after the `sendall` fixes both.
+
 ## Known limitations
 
 Deliberate — this is a learning build, not a production server.
@@ -110,8 +125,8 @@ Deliberate — this is a learning build, not a production server.
   stream whose position is now unknown, so one malformed line can produce
   several `400`s before it resynchronizes by luck. RFC 9112 says to close
   after a parse error precisely because recovery is not generally possible.
-- **`Connection: keep-alive` is sent unconditionally**, including on `400`
-  and without checking whether the client asked for it.
+- **`400` responses always advertise `keep-alive`**, since the close decision
+  is derived from a request that failed to parse.
 - **No chunked transfer encoding**, so a request without `Content-Length` is
   assumed to have no body.
 - **Threads are non-daemon**, so Ctrl-C won't exit cleanly while a connection

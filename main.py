@@ -87,7 +87,7 @@ def parse_request(reader: BufferedReader):
     return request
 
 
-def serialize_response(response: Response) -> bytes:
+def serialize_response(response: Response, close_connection: bool = False,) -> bytes:
     result = (
         b"HTTP/1.1 "
         + str(response.status_code).encode()
@@ -104,39 +104,62 @@ def serialize_response(response: Response) -> bytes:
         + str(len(response.body)).encode()
         + b"\r\n"
     )
+    connection_value = (
+        b"close"
+        if close_connection
+        else b"keep-alive"
+    )
     result += (
         b"Connection: "
-        + b"keep-alive"
+        + connection_value
         + b"\r\n"
         + b"\r\n"
     )
     result += response.body
     return result
 
+def should_close(request: Request) -> bool:
+    connection_header = request.headers.get(b"Connection")
+    if not connection_header:
+        return False
+    return connection_header.lower() == b"close"
 
 def handle_request(request: Request) -> Response:
     method = request.request_line.method
     target = request.request_line.target
-    if method == b"GET" and target == b"/":
-        return Response(
+
+    if target == b"/":
+        if method == b"GET":
+            return Response(
                 status_code=200,
                 reason=b"OK",
                 headers={b"Content-Type": b"text/plain"},
                 body=b"hello",
             )
-    elif method == b"GET" and target == b"/health":
+
         return Response(
+            status_code=405,
+            reason=b"Method Not Allowed",
+        )
+
+    if target == b"/health":
+        if method == b"GET":
+            return Response(
                 status_code=200,
                 reason=b"OK",
                 headers={b"Content-Type": b"text/plain"},
                 body=b"healthy",
             )
-    else:
-        return Response(
-                status_code=404,
-                reason=b"Not Found",
-            )
 
+        return Response(
+            status_code=405,
+            reason=b"Method Not Allowed",
+        )
+
+    return Response(
+        status_code=404,
+        reason=b"Not Found",
+    )
 
 def handle_connection(connection):
     reader = BufferedReader(connection)
@@ -144,8 +167,6 @@ def handle_connection(connection):
         while True:
             try:
                 request = parse_request(reader)
-                response = handle_request(request)
-                connection.sendall(serialize_response(response))
             except EOFError:
                 break
             except ValueError:
@@ -154,6 +175,11 @@ def handle_connection(connection):
                         reason=b"Bad Request",
                     )
                 connection.sendall(serialize_response(response))
+            response = handle_request(request)
+            close_after_response = should_close(request)
+            connection.sendall(serialize_response(response, close_connection=close_after_response))
+            if close_after_response:
+                break
     finally:
         connection.close()
 

@@ -6,9 +6,7 @@ client.connect(("localhost", 42069))
 client.sendall(
     b"GET / HTTP/1.1\r\n"
     b"Host: localhost\r\n"
-    b"\r\n"
-    b"GET /health HTTP/1.1\r\n"
-    b"Host: localhost\r\n"
+    b"Connection: close\r\n"
     b"\r\n"
 )
 
